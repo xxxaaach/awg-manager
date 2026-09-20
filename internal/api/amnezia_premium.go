@@ -730,6 +730,10 @@ type AmneziaPremiumIssuedConfig struct {
 	// переиздаваемым. Без этого поля страна, где выдано активное устройство,
 	// считалась бы уже выданной, и мастер показал бы состояние, которого нет.
 	SourceType string `json:"sourceType" example:"downloaded_config"`
+	// SupportTag is the portal installation_uuid for gateway_account entries.
+	// It lets the UI show whether the configured Support tag already exists on
+	// the subscription without exposing any credential.
+	SupportTag string `json:"supportTag,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // AmneziaPremiumCatalogData — данные подписки и список стран.
@@ -796,6 +800,7 @@ type premiumAccountInfo struct {
 		LastDownloaded    string `json:"last_downloaded"`
 		WorkerLastUpdated string `json:"worker_last_updated"`
 		SourceType        string `json:"source_type"`
+		InstallationUUID  string `json:"installation_uuid"`
 	} `json:"issued_configs"`
 }
 
