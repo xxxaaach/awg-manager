@@ -548,12 +548,19 @@ func (s *Server) registerLogsImportRoutes(mux *http.ServeMux, h *routeHandlers) 
 	// одно, и разводить его по трём путям нечем.
 	amneziaPremiumHandler := api.NewAmneziaPremiumHandler(s.settings, h.appLog)
 	amneziaPremiumHandler.SetEventBus(s.bus)
-	mux.HandleFunc("/api/amnezia/premium/key", h.guarded(amneziaPremiumHandler.Key))
-	// Каталог подписки (GET) и выдача конфигурации страны (POST). Пути
-	// разные, потому что операции разные: первая читает, вторая ТРАТИТ слот
-	// устройств подписки.
-	mux.HandleFunc("/api/amnezia/premium/catalog", h.guarded(amneziaPremiumHandler.Catalog))
-	mux.HandleFunc("/api/amnezia/premium/config", h.guarded(amneziaPremiumHandler.Config))
+	// Premium V2 Gateway wraps the legacy CP handler. Current vpn:// keys use
+	// the encrypted Gateway transport; legacy keys continue through CP.
+	amneziaPremiumGateway := api.NewAmneziaPremiumGatewayHandler(
+		amneziaPremiumHandler, s.settings, s.tunnelService, s.singboxOp, s.config.Version,
+	)
+	mux.HandleFunc("/api/amnezia/premium/key", h.guarded(amneziaPremiumGateway.Key))
+	// Catalog/config are transparent as well: V2 -> Gateway, legacy -> CP.
+	mux.HandleFunc("/api/amnezia/premium/catalog", h.guarded(amneziaPremiumGateway.Catalog))
+	mux.HandleFunc("/api/amnezia/premium/config", h.guarded(amneziaPremiumGateway.Config))
+	// Support tag is installation_uuid shown to Amnezia support. Switch is
+	// the atomic country/protocol operation used by both desktop and mobile UI.
+	mux.HandleFunc("/api/amnezia/premium/device", h.guarded(amneziaPremiumGateway.Device))
+	mux.HandleFunc("/api/amnezia/premium/switch", h.guarded(amneziaPremiumGateway.Switch))
 	// Отзыв конфигурации страны (POST) — обратная выдаче операция, ВОЗВРАЩАЕТ
 	// слот. Отдельный путь по той же причине, по какой выдача отделена от
 	// каталога: разные последствия для подписки.
