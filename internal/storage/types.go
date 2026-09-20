@@ -133,6 +133,7 @@ type Settings struct {
 	// Premium Gateway endpoint. They are UI/runtime state, not credentials.
 	AmneziaPremiumProtocol      string `json:"amneziaPremiumProtocol,omitempty"`
 	AmneziaPremiumServerCountry string `json:"amneziaPremiumServerCountry,omitempty"`
+	AmneziaPremiumAWGBackend    string `json:"amneziaPremiumAwgBackend,omitempty"`
 	// Runtime references let protocol switching update the same logical Premium
 	// connection instead of creating a fresh tunnel on every country change.
 	AmneziaPremiumAWGTunnelID string `json:"amneziaPremiumAwgTunnelId,omitempty"`
