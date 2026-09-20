@@ -18,7 +18,9 @@
 		/** Что делаем: берём сохранённый ключ или вводим другой. */
 		source: PremiumKeySource;
 		oninput: (value: string) => void;
+		supportTag: string;
 		onremember: (remember: boolean) => void;
+		onsupporttag: (supportTag: string) => void;
 		onsource: (source: PremiumKeySource) => void;
 		onforget: () => void;
 	}
@@ -26,12 +28,14 @@
 	let {
 		value,
 		remember,
+		supportTag,
 		busy,
 		unusableStored,
 		hasStoredKey,
 		source,
 		oninput,
 		onremember,
+		onsupporttag,
 		onsource,
 		onforget
 	}: Props = $props();
@@ -89,6 +93,21 @@
 			{value}
 			oninput={(e) => oninput(e.currentTarget.value)}
 		></textarea>
+		<label class="field-label" for="premium-support-tag">Support tag (необязательно)</label>
+		<input
+			id="premium-support-tag"
+			class="field-input"
+			type="text"
+			placeholder="Пусто — создать автоматически"
+			spellcheck="false"
+			autocomplete="off"
+			disabled={busy}
+			value={supportTag}
+			oninput={(e) => onsupporttag(e.currentTarget.value)}
+		/>
+		<p class="premium-support-hint">
+			Это installation_uuid устройства Amnezia. Можно указать существующий Support tag или оставить поле пустым.
+		</p>
 		<label class="premium-key-remember">
 			<input
 				type="checkbox"
@@ -126,6 +145,13 @@
 	.premium-key-input {
 		min-height: 84px;
 		width: 100%;
+	}
+
+	.premium-support-hint {
+		margin: -2px 0 2px;
+		font-size: 0.75rem;
+		line-height: 1.4;
+		color: var(--text-muted, var(--color-text-muted));
 	}
 
 	.premium-key-remember {
