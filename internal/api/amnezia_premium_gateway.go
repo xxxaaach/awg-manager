@@ -170,7 +170,12 @@ func (h *AmneziaPremiumGatewayHandler) Key(w http.ResponseWriter, r *http.Reques
 	// Restore the body before any legacy delegation.
 	r.Body = io.NopCloser(bytes.NewReader(raw))
 
-	var req AmneziaPremiumKeyRequest
+	var req struct {
+		Key        string `json:"key"`
+		Store      *bool  `json:"store,omitempty"`
+		Remember   *bool  `json:"remember,omitempty"`
+		SupportTag string `json:"supportTag,omitempty"`
+	}
 	if err := json.Unmarshal(raw, &req); err != nil {
 		h.legacy.Key(w, r)
 		return
