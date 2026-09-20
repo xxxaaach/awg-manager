@@ -2,6 +2,7 @@ package amneziagw
 
 import (
 	"bytes"
+	"context"
 	"compress/zlib"
 	"crypto/ecdh"
 	"crypto/rand"
