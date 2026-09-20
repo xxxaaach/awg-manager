@@ -322,7 +322,15 @@ func (h *AmneziaPremiumHandler) storedKey() (plain string, stored bool, err erro
 // отдельно, а не полем ответа: это отказ ручки, а не состояние ключа.
 func (h *AmneziaPremiumHandler) keyState() (AmneziaPremiumKeyData, error) {
 	plain, stored, err := h.storedKey()
-	return AmneziaPremiumKeyData{Stored: stored, Usable: stored && err == nil && plain != ""}, err
+	tag := ""
+	if cur, getErr := h.settings.Get(); getErr == nil {
+		tag = strings.TrimSpace(cur.AmneziaPremiumSupportTag)
+	}
+	return AmneziaPremiumKeyData{
+		Stored:     stored,
+		Usable:     stored && err == nil && plain != "",
+		SupportTag: tag,
+	}, err
 }
 
 // logf — журнал клиента CP: его событие ложится целью записи, детали —
