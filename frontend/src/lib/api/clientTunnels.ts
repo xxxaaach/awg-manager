@@ -7,6 +7,7 @@ import type {
 	AmneziaPremiumDeclaredCountry,
 	AmneziaPremiumGatewayConfig,
 	AmneziaPremiumGatewayState,
+	AmneziaPremiumSwitchResult,
 	AmneziaPremiumKeyState,
 	AmneziaPremiumMirror,
 	AmneziaPremiumRevoke,
@@ -314,6 +315,21 @@ export class TunnelsClient extends CoreClient {
 		return this.request('/amnezia/premium/gateway-config', {
 			method: 'POST',
 			body: JSON.stringify({ countryCode, protocol })
+		});
+	}
+
+	/**
+	 * Получает новый Gateway-конфиг и сразу применяет его к runtime: AWG через
+	 * native/kernel backend, VLESS через sing-box. Один Support tag сохраняется.
+	 */
+	async amneziaPremiumSwitch(
+		countryCode: string,
+		protocol: 'awg' | 'vless',
+		awgBackend?: 'nativewg' | 'kernel'
+	): Promise<AmneziaPremiumSwitchResult> {
+		return this.request('/amnezia/premium/switch', {
+			method: 'POST',
+			body: JSON.stringify({ countryCode, protocol, awgBackend })
 		});
 	}
 
