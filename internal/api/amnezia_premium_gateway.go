@@ -294,6 +294,8 @@ func (h *AmneziaPremiumHandler) GatewayConfig(w http.ResponseWriter, r *http.Req
 		response.InternalError(w, err.Error())
 		return
 	}
-	h.bus.PublishInvalidated(events.ResourceAmneziaPremiumCatalog, "gateway-config")
+	if h.bus != nil {
+		h.bus.PublishInvalidated(events.ResourceAmneziaPremiumCatalog, "gateway-config")
+	}
 	response.Success(w, out)
 }
