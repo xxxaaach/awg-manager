@@ -66,6 +66,10 @@
      * страной, к которой новая конфигурация отношения не имеет.
      */
     async function replaceFromPremium(result: PremiumWizardResult) {
+        if (result.protocol !== 'awg' || !result.config) {
+            notifications.error('В режиме замены AWG-туннеля требуется AWG конфигурация');
+            return;
+        }
         loading = true;
         try {
             const replaced = await api.replaceConfig(

@@ -4,11 +4,15 @@
 	/** Что мастер отдаёт вызывающему после успешной выдачи конфигурации. */
 	export interface PremiumWizardResult {
 		countryCode: string;
-		/** Текст .conf; строки с ключом подписки бэкенд из него уже вырезал. */
+		/** AWG .conf in replace mode; empty when /premium/switch already applied the runtime. */
 		config: string;
 		suggestedName: string;
-		/** В режиме замены поля нет: бэкенд существующего туннеля мастер не выбирает. */
 		backend?: PremiumWizardBackend;
+		protocol: 'awg' | 'vless';
+		supportTag?: string;
+		applied?: boolean;
+		awgTunnelId?: string;
+		vlessTag?: string;
 	}
 
 	/** Туннель, на который нацелена замена конфигурации. */
@@ -28,7 +32,7 @@
 	import Modal from '$lib/components/ui/Modal.svelte';
 	import type { AmneziaPremiumCatalog } from '$lib/types';
 	import {
-		isPremiumCountryAvailable,
+		isPremiumCountryAvailableForProtocol,
 		isPremiumCountryIssued,
 		isPremiumIssueAllowed,
 		premiumActiveDevicesForCountry,
@@ -37,7 +41,6 @@
 	} from '$lib/utils/amneziaPremiumCatalog';
 	import PremiumCountryList from './PremiumCountryList.svelte';
 	import PremiumCreateFooter from './PremiumCreateFooter.svelte';
-	import PremiumDeclaredCountryField from './PremiumDeclaredCountryField.svelte';
 	import PremiumKeyForm, { type PremiumKeySource } from './PremiumKeyForm.svelte';
 	import PremiumMirrorField from './PremiumMirrorField.svelte';
 	import PremiumSubscriptionCard from './PremiumSubscriptionCard.svelte';
@@ -82,12 +85,10 @@
 	/** Отметка времени на момент загрузки каталога: срок подписки не должен «ехать» при перерисовках. */
 	let nowMs = $state(0);
 	let selectedCountry = $state('');
-	/**
-	 * Страна, ИЗ которой подключается пользователь: портал требует её в
-	 * каждой выдаче и по ней собирает параметры конфигурации. Значение живёт
-	 * на роутере, сюда его приносит поле выбора; пусто — выбора ещё не было.
-	 */
-	let declaredCountry = $state('');
+	let gatewayCountry = $state('');
+	let protocol = $state<'awg' | 'vless'>('awg');
+	let supportTag = $state('');
+	let supportTagDraft = $state('');
 	let tunnelName = $state('');
 	let nameEdited = $state(false);
 	let backend = $state<PremiumWizardBackend>('nativewg');
@@ -190,14 +191,10 @@
 
 	const canIssue = $derived(
 		selectedCountry !== '' &&
-			// Без страны подключения портал отвечает отказом на РАСХОДНУЮ
-			// ручку: запирать кнопку дешевле, чем объяснять потом отказ.
-			declaredCountry !== '' &&
 			issueAllowed &&
 			!busy &&
 			(replaceTarget !== null ||
-				// Ни одного доступного бэкенда — выдавать нечего: импорт откажет,
-				// а слот подписки уже потрачен.
+				protocol === 'vless' ||
 				(tunnelName.trim().length > 0 && (nativewgAvailable || kernelAvailable)))
 	);
 
@@ -218,6 +215,10 @@
 		const gen = ++loadGen;
 		catalog = null;
 		selectedCountry = '';
+		gatewayCountry = '';
+		supportTag = '';
+		supportTagDraft = '';
+		protocol = 'awg';
 		tunnelName = '';
 		nameEdited = false;
 		// Состояние ключа обнуляется до ответа: «ключ сохранён» — утверждение,
@@ -246,13 +247,22 @@
 		}
 
 		try {
-			const state = await api.amneziaPremiumKeyState();
+			const [state, gateway] = await Promise.all([
+				api.amneziaPremiumKeyState(),
+				api.amneziaPremiumGatewayState()
+			]);
 			if (isStale(gen)) return;
 			keyStored = state.stored;
 			keyUsable = state.usable;
+			supportTag = state.supportTag || gateway.supportTag || '';
+			supportTagDraft = supportTag;
+			gatewayCountry = gateway.countryCode || '';
+			if (!replaceTarget) protocol = gateway.protocol === 'vless' ? 'vless' : 'awg';
+			if (gateway.awgBackend === 'kernel' || gateway.awgBackend === 'nativewg') {
+				backend = gateway.awgBackend;
+			}
 			// Сохранённый ключ НЕ применяется молча: пользователь выбирает сам,
-			// взять его или ввести другой. Иначе сменить подписку можно было бы
-			// только через «Забыть ключ», то есть потеряв старый.
+			// взять его или ввести другой.
 			keySource = state.stored && state.usable ? 'stored' : 'new';
 			phase = 'key';
 		} catch (e) {
@@ -273,8 +283,10 @@
 			// Только если она в списке ЕСТЬ: подписка могла её потерять или
 			// отдавать одним vless, и тогда выбранной оказалась бы строка,
 			// которой на экране нет, — с активной кнопкой замены.
-			if (replaceTarget?.country && shownCountryCode(data, replaceTarget.country)) {
+			if (replaceTarget?.country && shownCountryCode(data, replaceTarget.country, 'awg')) {
 				chooseCountry(replaceTarget.country);
+			} else if (!replaceTarget && gatewayCountry && shownCountryCode(data, gatewayCountry, protocol)) {
+				chooseCountry(gatewayCountry);
 			}
 			phase = 'catalog';
 		} catch (e) {
@@ -296,11 +308,16 @@
 		busy = true;
 		phase = 'loading';
 		try {
-			const state = await api.amneziaPremiumSaveKey(key, { store: remember });
+			const state = await api.amneziaPremiumSaveKey(key, {
+				store: remember,
+				supportTag: supportTagDraft
+			});
 			if (isStale(gen)) return;
 			clearLegacyPremiumKeys();
 			keyStored = state.stored;
 			keyUsable = state.usable;
+			supportTag = state.supportTag ?? supportTagDraft;
+			supportTagDraft = supportTag;
 			saveWarning = state.saveError ?? '';
 			// Ключ проверен — держать его в поле больше незачем.
 			keyInput = '';
@@ -413,17 +430,51 @@
 	}
 
 	/** Код страны, если она действительно показана в списке; иначе пустая строка. */
-	function shownCountryCode(data: AmneziaPremiumCatalog, code: string): string {
+	function shownCountryCode(
+		data: AmneziaPremiumCatalog,
+		code: string,
+		forProtocol: 'awg' | 'vless' = protocol
+	): string {
 		const wanted = code.trim().toLowerCase();
 		const hit = data.countries.find(
-			(c) => c.code.trim().toLowerCase() === wanted && isPremiumCountryAvailable(c)
+			(c) =>
+				c.code.trim().toLowerCase() === wanted &&
+				isPremiumCountryAvailableForProtocol(c, forProtocol)
 		);
 		return hit ? hit.code : '';
 	}
 
 	function chooseCountry(code: string): void {
 		selectedCountry = code;
-		if (!nameEdited) tunnelName = code ? `awg-${code.toLowerCase()}` : '';
+		if (!nameEdited) {
+			const prefix = protocol === 'vless' ? 'vless' : 'awg';
+			tunnelName = code ? `${prefix}-${code.toLowerCase()}` : '';
+		}
+	}
+
+	function chooseProtocol(next: 'awg' | 'vless'): void {
+		if (replaceTarget) return;
+		protocol = next;
+		if (catalog && selectedCountry && !shownCountryCode(catalog, selectedCountry, next)) {
+			selectedCountry = '';
+		}
+		if (!nameEdited && selectedCountry) chooseCountry(selectedCountry);
+	}
+
+	async function saveSupportTag(generate = false): Promise<void> {
+		busy = true;
+		saveWarning = '';
+		try {
+			const state = await api.amneziaPremiumSaveGatewayState({
+				supportTag: generate ? '' : supportTagDraft
+			});
+			supportTag = state.supportTag;
+			supportTagDraft = state.supportTag;
+		} catch (e) {
+			saveWarning = e instanceof Error ? e.message : 'Не удалось сохранить Support tag';
+		} finally {
+			busy = false;
+		}
 	}
 
 	/**
@@ -439,13 +490,6 @@
 	 */
 	function requestConfig(): void {
 		if (!selectedCountry || !issueAllowed) return;
-		const occupied =
-			isPremiumCountryIssued(issuedConfigs, selectedCountry) ||
-			premiumActiveDevicesForCountry(issuedConfigs, selectedCountry).length > 0;
-		if (occupied) {
-			confirmCountry = selectedCountry;
-			return;
-		}
 		void issueConfig(selectedCountry);
 	}
 
@@ -453,21 +497,42 @@
 		const gen = loadGen;
 		busy = true;
 		try {
-			const cfg = await api.amneziaPremiumConfig(code);
-			if (isStale(gen)) return;
-			busy = false;
-			confirmCountry = '';
-			onconfig({
-				countryCode: cfg.countryCode || code,
-				config: cfg.config,
-				suggestedName: replaceTarget ? replaceTarget.name : tunnelName.trim(),
-				backend: replaceTarget ? undefined : chosenBackend
-			});
+			if (replaceTarget) {
+				const cfg = await api.amneziaPremiumGatewayConfig(code, 'awg');
+				if (isStale(gen)) return;
+				if (!cfg.config) throw new Error('Gateway не вернул AWG конфигурацию');
+				busy = false;
+				onconfig({
+					countryCode: cfg.countryCode || code,
+					config: cfg.config,
+					suggestedName: replaceTarget.name,
+					protocol: 'awg',
+					supportTag: cfg.supportTag,
+					applied: false
+				});
+			} else {
+				const applied = await api.amneziaPremiumSwitch(code, protocol, chosenBackend);
+				if (isStale(gen)) return;
+				supportTag = applied.supportTag || supportTag;
+				supportTagDraft = supportTag;
+				gatewayCountry = applied.countryCode || code;
+				busy = false;
+				onconfig({
+					countryCode: applied.countryCode || code,
+					config: '',
+					suggestedName: tunnelName.trim(),
+					backend: chosenBackend,
+					protocol: applied.protocol,
+					supportTag: applied.supportTag,
+					applied: true,
+					awgTunnelId: applied.awgTunnelId,
+					vlessTag: applied.vlessTag
+				});
+			}
 			onclose();
 		} catch (e) {
 			if (isStale(gen)) return;
 			busy = false;
-			confirmCountry = '';
 			failWith(e, 'config');
 		}
 	}
@@ -508,12 +573,14 @@
 		<PremiumKeyForm
 			value={keyInput}
 			{remember}
+			supportTag={supportTagDraft}
 			{busy}
 			unusableStored={keyStored && !keyUsable}
 			{hasStoredKey}
 			source={keySource}
 			oninput={(v) => (keyInput = v)}
 			onremember={(v) => (remember = v)}
+			onsupporttag={(v) => (supportTagDraft = v)}
 			onsource={(v) => (keySource = v)}
 			onforget={() => void forgetKey()}
 		/>
@@ -539,17 +606,49 @@
 					Ключ проверен, но сохранить его на роутере не вышло: {saveWarning}
 				</p>
 			{/if}
-			<PremiumDeclaredCountryField
-				value={declaredCountry}
-				disabled={busy}
-				onchange={(code) => (declaredCountry = code)}
-			/>
+			<div class="premium-gateway-settings">
+				<div class="premium-setting-row">
+					<div class="premium-setting-copy">
+						<span class="premium-setting-title">Support tag</span>
+						<span class="premium-setting-hint">installation_uuid текущего устройства</span>
+					</div>
+					<div class="premium-support-edit">
+						<input
+							class="field-input"
+							type="text"
+							value={supportTagDraft}
+							disabled={busy}
+							placeholder="Создать автоматически"
+							oninput={(e) => (supportTagDraft = e.currentTarget.value)}
+						/>
+						<Button variant="secondary" size="sm" disabled={busy || supportTagDraft.trim() === supportTag} onclick={() => void saveSupportTag(false)}>
+							Сохранить
+						</Button>
+						<Button variant="ghost" size="sm" disabled={busy} onclick={() => void saveSupportTag(true)}>
+							Новый
+						</Button>
+					</div>
+				</div>
+				{#if !replaceTarget}
+					<div class="premium-setting-row premium-protocol-row">
+						<div class="premium-setting-copy">
+							<span class="premium-setting-title">Протокол</span>
+							<span class="premium-setting-hint">Страна переключается на том же Support tag</span>
+						</div>
+						<div class="premium-protocol-switch" role="group" aria-label="Протокол Amnezia Premium">
+							<button type="button" class:active={protocol === 'awg'} disabled={busy} onclick={() => chooseProtocol('awg')}>AWG</button>
+							<button type="button" class:active={protocol === 'vless'} disabled={busy} onclick={() => chooseProtocol('vless')}>VLESS</button>
+						</div>
+					</div>
+				{/if}
+			</div>
 			<PremiumCountryList
 				countries={catalog.countries}
 				issued={issuedConfigs}
 				{countryTunnels}
 				selected={selectedCountry}
 				disabled={!issueAllowed || busy}
+				{protocol}
 				onselect={chooseCountry}
 			/>
 		</div>
@@ -593,7 +692,7 @@
 					Забыть ключ
 				</Button>
 			{/if}
-			{#if !replaceTarget}
+			{#if !replaceTarget && protocol === 'awg'}
 				<PremiumCreateFooter
 					name={tunnelName}
 					backend={chosenBackend}
@@ -622,7 +721,7 @@
 				disabled={phase !== 'catalog' || !canIssue}
 				onclick={requestConfig}
 			>
-				{replaceTarget ? 'Заменить конфиг' : 'Создать туннель'}
+				{replaceTarget ? 'Заменить конфиг' : 'Подключить'}
 			</Button>
 		</div>
 	{/if}
@@ -673,6 +772,102 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+	}
+
+	.premium-gateway-settings {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px;
+		border: 1px solid var(--border, var(--color-border));
+		border-radius: 8px;
+	}
+
+	.premium-setting-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.premium-setting-copy {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 120px;
+	}
+
+	.premium-setting-title {
+		font-size: 0.8125rem;
+		font-weight: 600;
+	}
+
+	.premium-setting-hint {
+		font-size: 0.6875rem;
+		color: var(--text-muted, var(--color-text-muted));
+	}
+
+	.premium-support-edit {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-width: 0;
+		flex: 1;
+		justify-content: flex-end;
+	}
+
+	.premium-support-edit .field-input {
+		min-width: 0;
+		max-width: 360px;
+	}
+
+	.premium-protocol-switch {
+		display: inline-flex;
+		padding: 2px;
+		border: 1px solid var(--border, var(--color-border));
+		border-radius: 8px;
+		background: var(--bg-secondary, var(--color-bg-secondary));
+	}
+
+	.premium-protocol-switch button {
+		border: 0;
+		border-radius: 6px;
+		padding: 6px 14px;
+		background: transparent;
+		color: var(--text-secondary, var(--color-text-secondary));
+		cursor: pointer;
+	}
+
+	.premium-protocol-switch button.active {
+		background: var(--accent, var(--color-accent));
+		color: var(--accent-contrast, #fff);
+	}
+
+	@media (max-width: 640px) {
+		.premium-setting-row {
+			align-items: stretch;
+			flex-direction: column;
+			gap: 6px;
+		}
+
+		.premium-support-edit {
+			justify-content: stretch;
+			flex-wrap: wrap;
+		}
+
+		.premium-support-edit .field-input {
+			flex: 1 1 100%;
+			max-width: none;
+		}
+
+		.premium-protocol-switch {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+		}
+
+		.premium-protocol-switch button {
+			width: 100%;
+		}
 	}
 
 	.premium-save-warning {

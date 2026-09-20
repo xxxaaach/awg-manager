@@ -13,6 +13,7 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/events"
 	"github.com/hoaxisr/awg-manager/internal/logging"
 	"github.com/hoaxisr/awg-manager/internal/response"
+	"github.com/hoaxisr/awg-manager/internal/singbox"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 )
 
@@ -72,7 +73,11 @@ const logActionPremium = "amnezia-premium"
 type AmneziaPremiumKeyRequest struct {
 	Key      string `json:"key" example:"vpn://..."`
 	Store    *bool  `json:"store,omitempty" example:"false"`
-	Remember *bool  `json:"remember,omitempty" example:"true"`
+	Remember   *bool   `json:"remember,omitempty" example:"true"`
+	// SupportTag is Amnezia Gateway installation_uuid. nil preserves an
+	// existing tag (or allocates one on first account add); an explicitly
+	// empty string rotates to a new generated UUID.
+	SupportTag *string `json:"supportTag,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // AmneziaPremiumKeyData — состояние ключа подписки. Форма ОДНА на все три
@@ -95,6 +100,8 @@ type AmneziaPremiumKeyData struct {
 	// состоявшийся вход. Без omitempty намеренно: поле, пропадающее из тела
 	// там, где ошибки нет, — это и есть вторая форма ответа.
 	SaveError string `json:"saveError"`
+	// SupportTag is not a credential; it is the Gateway device identifier.
+	SupportTag string `json:"supportTag,omitempty"`
 }
 
 // AmneziaPremiumKeyResponse — конверт всех трёх методов /amnezia/premium/key.
@@ -114,6 +121,11 @@ type AmneziaPremiumHandler struct {
 	cipher   *storage.DeviceCipher
 	log      *logging.ScopedLogger
 	bus      *events.Bus
+	// Gateway-mode runtime dependencies. They are wired by the HTTP server
+	// after construction so the legacy CP-only tests can keep using a minimal
+	// handler.
+	tunnelSvc TunnelService
+	singboxOp *singbox.Operator
 
 	mu sync.Mutex
 	// sessionKey — ключ режима «не запоминать»: живёт в памяти демона до
@@ -164,6 +176,14 @@ func NewAmneziaPremiumHandler(settings *storage.SettingsStore, appLogger logging
 
 // SetEventBus подключает шину SSE; nil допустим (тесты).
 func (h *AmneziaPremiumHandler) SetEventBus(bus *events.Bus) { h.bus = bus }
+
+// SetGatewayRuntime wires the two runtime backends used by the Premium quick
+// switcher: AWG remains on the existing native/kernel tunnel service, while
+// VLESS is managed by sing-box.
+func (h *AmneziaPremiumHandler) SetGatewayRuntime(tunnels TunnelService, sb *singbox.Operator) {
+	h.tunnelSvc = tunnels
+	h.singboxOp = sb
+}
 
 // SetHTTPClient подменяет транспорт к зеркалу и порталу. Шов для тестов:
 // стенд на httptest.NewTLSServer отдаёт самоподписанный сертификат, и без
@@ -316,7 +336,15 @@ func (h *AmneziaPremiumHandler) storedKey() (plain string, stored bool, err erro
 // отдельно, а не полем ответа: это отказ ручки, а не состояние ключа.
 func (h *AmneziaPremiumHandler) keyState() (AmneziaPremiumKeyData, error) {
 	plain, stored, err := h.storedKey()
-	return AmneziaPremiumKeyData{Stored: stored, Usable: stored && err == nil && plain != ""}, err
+	tag := ""
+	if cur, getErr := h.settings.Get(); getErr == nil {
+		tag = strings.TrimSpace(cur.AmneziaPremiumSupportTag)
+	}
+	return AmneziaPremiumKeyData{
+		Stored:     stored,
+		Usable:     stored && err == nil && plain != "",
+		SupportTag: tag,
+	}, err
 }
 
 // logf — журнал клиента CP: его событие ложится целью записи, детали —
@@ -395,6 +423,13 @@ func (h *AmneziaPremiumHandler) SaveKey(w http.ResponseWriter, r *http.Request) 
 		response.ErrorWithStatus(w, http.StatusConflict,
 			"Состояние ключа подписки изменилось, пока шла проверка — введите ключ заново", codePremiumStateChanged)
 		return
+	}
+
+	// A Premium account and its Gateway device identity are established
+	// together. Existing installations keep their tag when old clients do not
+	// send the new field; first use allocates a UUID automatically.
+	if _, tagErr := h.ensurePremiumSupportTag(req.SupportTag); tagErr != nil {
+		h.log.Warn(logActionPremium, "support-tag", "не удалось сохранить Support tag: "+tagErr.Error())
 	}
 
 	var saveErrMsg string
@@ -533,6 +568,15 @@ func (h *AmneziaPremiumHandler) DeleteKey(w http.ResponseWriter, r *http.Request
 	err := h.settings.Update(func(cur *storage.Settings) error {
 		hadCipher = strings.TrimSpace(cur.AmneziaPremiumKeyCipher) != ""
 		cur.AmneziaPremiumKeyCipher = ""
+		// Gateway identity belongs to the Premium account. Forgetting the
+		// account detaches existing runtimes instead of letting a newly added
+		// subscription overwrite a tunnel that belonged to the old key.
+		cur.AmneziaPremiumSupportTag = ""
+		cur.AmneziaPremiumProtocol = ""
+		cur.AmneziaPremiumServerCountry = ""
+		cur.AmneziaPremiumAWGBackend = ""
+		cur.AmneziaPremiumAWGTunnelID = ""
+		cur.AmneziaPremiumVLESSTag = ""
 		return nil
 	})
 	// Поколение двигает КАЖДОЕ удаление — и то, которому было что удалять, и
@@ -730,6 +774,10 @@ type AmneziaPremiumIssuedConfig struct {
 	// переиздаваемым. Без этого поля страна, где выдано активное устройство,
 	// считалась бы уже выданной, и мастер показал бы состояние, которого нет.
 	SourceType string `json:"sourceType" example:"downloaded_config"`
+	// SupportTag is the portal installation_uuid for gateway_account entries.
+	// It lets the UI show whether the configured Support tag already exists on
+	// the subscription without exposing any credential.
+	SupportTag string `json:"supportTag,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // AmneziaPremiumCatalogData — данные подписки и список стран.
@@ -796,6 +844,7 @@ type premiumAccountInfo struct {
 		LastDownloaded    string `json:"last_downloaded"`
 		WorkerLastUpdated string `json:"worker_last_updated"`
 		SourceType        string `json:"source_type"`
+		InstallationUUID  string `json:"installation_uuid"`
 	} `json:"issued_configs"`
 }
 

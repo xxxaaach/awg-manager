@@ -10,8 +10,7 @@ import type { AmneziaPremiumCountry, AmneziaPremiumIssuedConfig } from '$lib/typ
 // доезжает, и чтение по ним дало бы undefined молча: все записи стали бы
 // переиздаваемыми, а устаревание — невозможным.
 
-/** Единственный протокол, которым мастер умеет забрать конфигурацию. */
-const PREMIUM_USABLE_PROTOCOL = 'awg';
+export type PremiumGatewayProtocol = 'awg' | 'vless';
 
 /** Код страны в сравнимый вид: ни портал, ни запись туннеля регистр не нормализуют. */
 function premiumCountryCode(value: unknown): string {
@@ -28,10 +27,21 @@ function premiumCountryCode(value: unknown): string {
  * (отказ); поля нет (null/undefined) — старый ответ портала его не содержал,
  * и отбрасывать по нему страну нельзя (молчание, а не отказ).
  */
-export function isPremiumCountryAvailable(country: AmneziaPremiumCountry): boolean {
+export function isPremiumCountryAvailableForProtocol(
+	country: AmneziaPremiumCountry,
+	protocol: PremiumGatewayProtocol
+): boolean {
 	const protocols = country.protocols;
 	if (protocols == null) return true;
-	return protocols.some((p) => premiumCountryCode(p) === PREMIUM_USABLE_PROTOCOL);
+	return protocols.some((p) => premiumCountryCode(p) === protocol);
+}
+
+/**
+ * Backwards-compatible helper for the older AWG-only call sites. New Premium
+ * Gateway UI should use isPremiumCountryAvailableForProtocol explicitly.
+ */
+export function isPremiumCountryAvailable(country: AmneziaPremiumCountry): boolean {
+	return isPremiumCountryAvailableForProtocol(country, 'awg');
 }
 
 /**

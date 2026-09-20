@@ -5,6 +5,9 @@ import type {
 	AmneziaPremiumCatalog,
 	AmneziaPremiumConfig,
 	AmneziaPremiumDeclaredCountry,
+	AmneziaPremiumGatewayConfig,
+	AmneziaPremiumGatewayState,
+	AmneziaPremiumSwitchResult,
 	AmneziaPremiumKeyState,
 	AmneziaPremiumMirror,
 	AmneziaPremiumRevoke,
@@ -260,21 +263,74 @@ export class TunnelsClient extends CoreClient {
 	 */
 	async amneziaPremiumSaveKey(
 		key: string,
-		opts: { store?: boolean; remember?: boolean } = {}
+		opts: { store?: boolean; remember?: boolean; supportTag?: string } = {}
 	): Promise<AmneziaPremiumKeyState> {
+		const body: {
+			key: string;
+			store: boolean;
+			remember: boolean;
+			supportTag?: string;
+		} = {
+			key: key.trim(),
+			store: opts.store ?? false,
+			remember: opts.remember ?? true
+		};
+		// undefined = preserve an existing tag; an explicitly empty string is
+		// meaningful to the backend and asks it to generate a fresh UUID.
+		if (opts.supportTag !== undefined) body.supportTag = opts.supportTag.trim();
 		return this.request('/amnezia/premium/key', {
 			method: 'POST',
-			body: JSON.stringify({
-				key: key.trim(),
-				store: opts.store ?? false,
-				remember: opts.remember ?? true
-			})
+			body: JSON.stringify(body)
 		});
 	}
 
 	/** Состояние сохранённого ключа подписки. */
 	async amneziaPremiumKeyState(): Promise<AmneziaPremiumKeyState> {
 		return this.request('/amnezia/premium/key');
+	}
+
+	/** Текущее состояние reusable Gateway-устройства Premium. */
+	async amneziaPremiumGatewayState(): Promise<AmneziaPremiumGatewayState> {
+		return this.request('/amnezia/premium/gateway-state');
+	}
+
+	/**
+	 * Меняет Support tag и/или выбранные страну/протокол. Пустой supportTag
+	 * означает «сгенерировать новый», отсутствие поля — «не менять».
+	 */
+	async amneziaPremiumSaveGatewayState(
+		patch: Partial<AmneziaPremiumGatewayState>
+	): Promise<AmneziaPremiumGatewayState> {
+		return this.request('/amnezia/premium/gateway-state', {
+			method: 'POST',
+			body: JSON.stringify(patch)
+		});
+	}
+
+	/** Получает конфигурацию страны через reusable Amnezia Gateway device. */
+	async amneziaPremiumGatewayConfig(
+		countryCode: string,
+		protocol: 'awg' | 'vless'
+	): Promise<AmneziaPremiumGatewayConfig> {
+		return this.request('/amnezia/premium/gateway-config', {
+			method: 'POST',
+			body: JSON.stringify({ countryCode, protocol })
+		});
+	}
+
+	/**
+	 * Получает новый Gateway-конфиг и сразу применяет его к runtime: AWG через
+	 * native/kernel backend, VLESS через sing-box. Один Support tag сохраняется.
+	 */
+	async amneziaPremiumSwitch(
+		countryCode: string,
+		protocol: 'awg' | 'vless',
+		awgBackend?: 'nativewg' | 'kernel'
+	): Promise<AmneziaPremiumSwitchResult> {
+		return this.request('/amnezia/premium/switch', {
+			method: 'POST',
+			body: JSON.stringify({ countryCode, protocol, awgBackend })
+		});
 	}
 
 	/** Забыть ключ подписки: стирает шифротекст и роняет сессию портала. */
