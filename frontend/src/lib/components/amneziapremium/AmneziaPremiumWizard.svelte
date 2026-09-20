@@ -231,6 +231,8 @@
 		keyUsable = false;
 		keySource = 'new';
 		remember = false;
+		supportTagDirty = false;
+		gatewayProtocol = 'awg';
 		revokeCountry = '';
 		saveWarning = '';
 		confirmCountry = '';
@@ -273,12 +275,24 @@
 			if (isStale(gen)) return;
 			catalog = data;
 			nowMs = Date.now();
+			if (data.gateway) {
+				supportTag = data.supportTag ?? supportTag;
+				supportTagDirty = false;
+				gatewayProtocol = data.currentProtocol === 'vless' ? 'vless' : 'awg';
+				if (data.awgBackend === 'nativewg' || data.awgBackend === 'kernel') {
+					backend = data.awgBackend;
+				}
+				if (!replaceTarget && data.currentCountry) {
+					const current = shownCountryCode(data, data.currentCountry, gatewayProtocol);
+					if (current) chooseCountry(current);
+				}
+			}
 			// В режиме замены страна туннеля уже известна — подставляем её,
 			// чтобы «Заменить конфиг» не требовал искать её в списке заново.
 			// Только если она в списке ЕСТЬ: подписка могла её потерять или
 			// отдавать одним vless, и тогда выбранной оказалась бы строка,
 			// которой на экране нет, — с активной кнопкой замены.
-			if (replaceTarget?.country && shownCountryCode(data, replaceTarget.country)) {
+			if (replaceTarget?.country && shownCountryCode(data, replaceTarget.country, data.gateway ? gatewayProtocol : 'awg')) {
 				chooseCountry(replaceTarget.country);
 			}
 			phase = 'catalog';
@@ -301,7 +315,10 @@
 		busy = true;
 		phase = 'loading';
 		try {
-			const state = await api.amneziaPremiumSaveKey(key, { store: remember });
+			const state = await api.amneziaPremiumSaveKey(key, {
+				store: remember,
+				supportTag: supportTag.trim() || undefined
+			});
 			if (isStale(gen)) return;
 			clearLegacyPremiumKeys();
 			keyStored = state.stored;
@@ -349,6 +366,7 @@
 		tunnelName = '';
 		nameEdited = false;
 		keyInput = '';
+		supportTagDirty = false;
 		errorText = '';
 		errorHint = '';
 		saveWarning = '';
