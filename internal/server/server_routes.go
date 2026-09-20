@@ -570,6 +570,7 @@ func (s *Server) registerLogsImportRoutes(mux *http.ServeMux, h *routeHandlers) 
 	// one installation_uuid (Support tag) across country/protocol changes.
 	mux.HandleFunc("/api/amnezia/premium/gateway-state", h.guarded(amneziaPremiumHandler.GatewayState))
 	mux.HandleFunc("/api/amnezia/premium/gateway-config", h.guarded(amneziaPremiumHandler.GatewayConfig))
+	mux.HandleFunc("/api/amnezia/premium/switch", h.guarded(amneziaPremiumHandler.Switch))
 
 	// External tunnels (protected + boot guarded)
 	mux.HandleFunc("/api/external-tunnels", h.guarded(h.externalHandler.List))
