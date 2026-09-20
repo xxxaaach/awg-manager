@@ -47,6 +47,13 @@ export interface AmneziaPremiumCatalog {
 	countries: AmneziaPremiumCountry[];
 	/** null — портал про выданное не сказал; [] — выданного нет. Это разные состояния. */
 	issuedConfigs?: AmneziaPremiumIssuedConfig[] | null;
+	/** Premium V2: каталог получен через Amnezia Gateway, а не legacy CP. */
+	gateway?: boolean;
+	/** installation_uuid, показываемый пользователю как Support tag. */
+	supportTag?: string;
+	currentCountry?: string;
+	currentProtocol?: 'awg' | 'vless' | string;
+	awgBackend?: 'nativewg' | 'kernel' | string;
 }
 
 /** Состояние ключа подписки — общая форма ответа GET/POST/DELETE /amnezia/premium/key. */
@@ -89,6 +96,21 @@ export interface AmneziaPremiumDeclaredCountry {
 /** ДЕЙСТВУЮЩИЙ адрес зеркала Amnezia: GET/POST /amnezia/premium/mirror. */
 export interface AmneziaPremiumMirror {
 	mirrorUrl: string;
+}
+
+/** Локальная идентичность и текущий runtime Premium V2. */
+export interface AmneziaPremiumGatewayDevice {
+	supportTag: string;
+	protocol?: 'awg' | 'vless' | string;
+	countryCode?: string;
+	awgTunnelId?: string;
+	vlessTag?: string;
+	awgBackend?: 'nativewg' | 'kernel' | string;
+}
+
+export interface AmneziaPremiumSwitchResult extends AmneziaPremiumGatewayDevice {
+	protocol: 'awg' | 'vless';
+	countryCode: string;
 }
 
 // === Subscriptions ===

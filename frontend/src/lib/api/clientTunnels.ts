@@ -5,9 +5,11 @@ import type {
 	AmneziaPremiumCatalog,
 	AmneziaPremiumConfig,
 	AmneziaPremiumDeclaredCountry,
+	AmneziaPremiumGatewayDevice,
 	AmneziaPremiumKeyState,
 	AmneziaPremiumMirror,
 	AmneziaPremiumRevoke,
+	AmneziaPremiumSwitchResult,
 	ConnectivityResult,
 	DeleteResult,
 	ExternalTunnel,
@@ -260,14 +262,15 @@ export class TunnelsClient extends CoreClient {
 	 */
 	async amneziaPremiumSaveKey(
 		key: string,
-		opts: { store?: boolean; remember?: boolean } = {}
+		opts: { store?: boolean; remember?: boolean; supportTag?: string } = {}
 	): Promise<AmneziaPremiumKeyState> {
 		return this.request('/amnezia/premium/key', {
 			method: 'POST',
 			body: JSON.stringify({
 				key: key.trim(),
 				store: opts.store ?? false,
-				remember: opts.remember ?? true
+				remember: opts.remember ?? true,
+				supportTag: opts.supportTag?.trim() || ''
 			})
 		});
 	}
@@ -285,6 +288,31 @@ export class TunnelsClient extends CoreClient {
 	/** Данные подписки и список стран. Операция читающая. */
 	async amneziaPremiumCatalog(): Promise<AmneziaPremiumCatalog> {
 		return this.request('/amnezia/premium/catalog');
+	}
+
+	/** Premium V2 Support tag (installation_uuid) и текущий runtime. */
+	async amneziaPremiumGatewayDevice(): Promise<AmneziaPremiumGatewayDevice> {
+		return this.request('/amnezia/premium/device');
+	}
+
+	/** Меняет Support tag. Новый tag используется уже следующим Gateway-запросом. */
+	async amneziaPremiumSaveSupportTag(supportTag: string): Promise<{ supportTag: string }> {
+		return this.request('/amnezia/premium/device', {
+			method: 'POST',
+			body: JSON.stringify({ supportTag: supportTag.trim() })
+		});
+	}
+
+	/** Получает конфиг страны/протокола, применяет его и поднимает runtime. */
+	async amneziaPremiumSwitch(
+		countryCode: string,
+		protocol: 'awg' | 'vless',
+		awgBackend?: 'nativewg' | 'kernel'
+	): Promise<AmneziaPremiumSwitchResult> {
+		return this.request('/amnezia/premium/switch', {
+			method: 'POST',
+			body: JSON.stringify({ countryCode, protocol, awgBackend })
+		});
 	}
 
 	/**

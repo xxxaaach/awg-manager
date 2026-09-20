@@ -4,3 +4,5 @@ export type {
 	PremiumWizardReplaceTarget,
 	PremiumWizardResult
 } from './AmneziaPremiumWizard.svelte';
+
+export { default as PremiumQuickSwitch } from './PremiumQuickSwitch.svelte';

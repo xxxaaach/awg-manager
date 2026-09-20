@@ -17,8 +17,11 @@
 		hasStoredKey: boolean;
 		/** Что делаем: берём сохранённый ключ или вводим другой. */
 		source: PremiumKeySource;
+		/** Premium V2 installation_uuid. Empty = backend generates a stable UUID. */
+		supportTag?: string;
 		oninput: (value: string) => void;
 		onremember: (remember: boolean) => void;
+		onsupporttag?: (value: string) => void;
 		onsource: (source: PremiumKeySource) => void;
 		onforget: () => void;
 	}
@@ -30,8 +33,10 @@
 		unusableStored,
 		hasStoredKey,
 		source,
+		supportTag = '',
 		oninput,
 		onremember,
+		onsupporttag = () => {},
 		onsource,
 		onforget
 	}: Props = $props();
@@ -99,6 +104,21 @@
 			<span>Запомнить ключ на роутере (хранится в зашифрованном виде)</span>
 		</label>
 	{/if}
+	<div class="premium-support-tag-field">
+		<label class="field-label" for="premium-support-tag">Support tag</label>
+		<input
+			id="premium-support-tag"
+			class="field-input"
+			value={supportTag}
+			placeholder="необязательно — будет создан UUID"
+			spellcheck="false"
+			disabled={busy}
+			oninput={(e) => onsupporttag(e.currentTarget.value)}
+		/>
+		<p class="premium-support-tag-hint">
+			Для Premium V2 это installation UUID, который видит поддержка Amnezia. Оставьте пустым, чтобы создать новый автоматически.
+		</p>
+	</div>
 	<p class="premium-key-direct">
 		Запрос к сервису Amnezia уходит с роутера напрямую, поэтому список стран и выдача зависят от
 		того, доступен ли сервис из вашего региона.
@@ -151,6 +171,19 @@
 		background: var(--color-warning-tint);
 		border: 1px solid var(--color-warning-border);
 		border-radius: 8px;
+	}
+
+	.premium-support-tag-field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.premium-support-tag-hint {
+		margin: 0;
+		font-size: 0.75rem;
+		line-height: 1.4;
+		color: var(--text-muted, var(--color-text-muted));
 	}
 
 	.premium-key-direct {

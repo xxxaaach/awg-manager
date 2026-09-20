@@ -125,6 +125,24 @@ type Settings struct {
 	// Пишется ручкой premium с тем же значением, с которым ушёл запрос в
 	// портал; через /settings/update поля нет (nonPatchableSettings).
 	AmneziaPremiumDeclaredCountry string `json:"amneziaPremiumDeclaredCountry,omitempty"`
+	// AmneziaPremiumGateway is the local identity/runtime state for Premium V2
+	// Gateway mode. SupportTag is sent as installation_uuid (the value shown by
+	// Amnezia support). Protocol/Country remember the quick-switch selection;
+	// runtime IDs link that logical subscription to the concrete AWG/sing-box
+	// objects without exposing the subscription key.
+	AmneziaPremiumGateway *AmneziaPremiumGatewayState `json:"amneziaPremiumGateway,omitempty"`
+}
+
+// AmneziaPremiumGatewayState is intentionally non-secret. The API key stays
+// exclusively in AmneziaPremiumKeyCipher; this record only contains identity
+// and local runtime bookkeeping.
+type AmneziaPremiumGatewayState struct {
+	SupportTag  string `json:"supportTag,omitempty"`
+	Protocol    string `json:"protocol,omitempty"` // awg | vless
+	CountryCode string `json:"countryCode,omitempty"`
+	AWGTunnelID string `json:"awgTunnelId,omitempty"`
+	VLESSTag    string `json:"vlessTag,omitempty"`
+	AWGBackend  string `json:"awgBackend,omitempty"` // nativewg | kernel
 }
 
 // DNSChainPresetState is backend-managed state of the DNS-chain preset
