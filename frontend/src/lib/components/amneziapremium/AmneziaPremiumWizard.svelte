@@ -75,6 +75,9 @@
 	let phase = $state<Phase>('loading');
 	let keyInput = $state('');
 	let remember = $state(false);
+	let supportTag = $state('');
+	let supportTagDirty = $state(false);
+	let gatewayProtocol = $state<'awg' | 'vless'>('awg');
 	let keyStored = $state(false);
 	let keyUsable = $state(false);
 	let saveWarning = $state('');
@@ -157,6 +160,7 @@
 	const revokeCountryName = $derived(
 		catalog?.countries.find((c) => c.code === revokeCountry)?.name ?? revokeCountry
 	);
+	const isGateway = $derived(catalog?.gateway === true);
 	/**
 	 * Отзывать можно только ВЫДАННУЮ нами конфигурацию страны. Устройство
 	 * приложения Amnezia (source_type=gateway_account) сюда не попадает:
@@ -167,6 +171,7 @@
 	 * подтверждения выдачи по такой стране.
 	 */
 	const canRevoke = $derived(
+		!isGateway &&
 		phase === 'catalog' &&
 			selectedCountry !== '' &&
 			!busy &&
@@ -190,15 +195,15 @@
 
 	const canIssue = $derived(
 		selectedCountry !== '' &&
-			// Без страны подключения портал отвечает отказом на РАСХОДНУЮ
-			// ручку: запирать кнопку дешевле, чем объяснять потом отказ.
-			declaredCountry !== '' &&
-			issueAllowed &&
-			!busy &&
-			(replaceTarget !== null ||
-				// Ни одного доступного бэкенда — выдавать нечего: импорт откажет,
-				// а слот подписки уже потрачен.
-				(tunnelName.trim().length > 0 && (nativewgAvailable || kernelAvailable)))
+		issueAllowed &&
+		!busy &&
+		(isGateway
+			? (replaceTarget
+				? gatewayProtocol === 'awg'
+				: gatewayProtocol === 'vless' || (nativewgAvailable || kernelAvailable))
+			: declaredCountry !== '' &&
+				(replaceTarget !== null ||
+					(tunnelName.trim().length > 0 && (nativewgAvailable || kernelAvailable))))
 	);
 
 	// Инициализация привязана к переходу «закрыт → открыт». Единственная
