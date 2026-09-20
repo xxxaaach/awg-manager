@@ -34,6 +34,8 @@ export interface AmneziaPremiumIssuedConfig {
 	portalUpdatedAt?: string;
 	/** Вид записи: gateway_account — активное устройство, остальное переиздаваемо. */
 	sourceType?: string;
+	/** Gateway installation_uuid shown by AmneziaVPN as Support tag. */
+	supportTag?: string;
 }
 
 /** Данные подписки и список стран: GET /amnezia/premium/catalog. */
@@ -57,6 +59,28 @@ export interface AmneziaPremiumKeyState {
 	usable: boolean;
 	/** Почему сохранить не вышло; пусто — сохранять не просили или сохранение прошло. */
 	saveError: string;
+	/** Current Gateway device identifier, when allocated. */
+	supportTag?: string;
+}
+
+/** Persisted state of the reusable Amnezia Gateway device. */
+export interface AmneziaPremiumGatewayState {
+	supportTag: string;
+	protocol: 'awg' | 'vless';
+	countryCode: string;
+}
+
+/** Config returned by the reusable Gateway flow. */
+export interface AmneziaPremiumGatewayConfig {
+	countryCode: string;
+	protocol: 'awg' | 'vless';
+	supportTag: string;
+	/** AWG .conf, present for protocol=awg. */
+	config?: string;
+	/** Synthetic vpn:// link accepted by the existing sing-box importer. */
+	link?: string;
+	/** Parsed sing-box outbound, useful for in-place updates. */
+	outbound?: Record<string, unknown>;
 }
 
 /** Выданная конфигурация страны: POST /amnezia/premium/config. */
