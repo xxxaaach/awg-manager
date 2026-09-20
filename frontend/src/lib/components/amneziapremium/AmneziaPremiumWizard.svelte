@@ -436,12 +436,44 @@
 	}
 
 	/** Код страны, если она действительно показана в списке; иначе пустая строка. */
-	function shownCountryCode(data: AmneziaPremiumCatalog, code: string): string {
+	function shownCountryCode(
+		data: AmneziaPremiumCatalog,
+		code: string,
+		protocol: 'awg' | 'vless' = 'awg'
+	): string {
 		const wanted = code.trim().toLowerCase();
-		const hit = data.countries.find(
-			(c) => c.code.trim().toLowerCase() === wanted && isPremiumCountryAvailable(c)
-		);
+		const hit = data.countries.find((c) => {
+			if (c.code.trim().toLowerCase() !== wanted) return false;
+			if (protocol === 'awg') return isPremiumCountryAvailable(c);
+			if (c.protocols == null) return true;
+			return c.protocols.some((p) => p.trim().toLowerCase() === protocol);
+		});
 		return hit ? hit.code : '';
+	}
+
+	function setGatewayProtocol(protocol: 'awg' | 'vless'): void {
+		gatewayProtocol = protocol;
+		if (catalog && selectedCountry && !shownCountryCode(catalog, selectedCountry, protocol)) {
+			selectedCountry = '';
+		}
+		if (protocol === 'awg' && !nameEdited && selectedCountry) {
+			tunnelName = `awg-${selectedCountry.toLowerCase()}`;
+		}
+	}
+
+	async function saveSupportTag(): Promise<void> {
+		const value = supportTag.trim();
+		if (!value || busy) return;
+		busy = true;
+		try {
+			const saved = await api.amneziaPremiumSaveSupportTag(value);
+			supportTag = saved.supportTag;
+			supportTagDirty = false;
+		} catch (e) {
+			failWith(e, 'catalog');
+		} finally {
+			busy = false;
+		}
 	}
 
 	function chooseCountry(code: string): void {
@@ -462,6 +494,10 @@
 	 */
 	function requestConfig(): void {
 		if (!selectedCountry || !issueAllowed) return;
+		if (isGateway && !replaceTarget) {
+			void switchGateway();
+			return;
+		}
 		const occupied =
 			isPremiumCountryIssued(issuedConfigs, selectedCountry) ||
 			premiumActiveDevicesForCountry(issuedConfigs, selectedCountry).length > 0;
@@ -470,6 +506,28 @@
 			return;
 		}
 		void issueConfig(selectedCountry);
+	}
+
+	async function switchGateway(): Promise<void> {
+		if (!selectedCountry || !catalog?.gateway) return;
+		const gen = loadGen;
+		busy = true;
+		try {
+			if (supportTagDirty && supportTag.trim()) {
+				const saved = await api.amneziaPremiumSaveSupportTag(supportTag.trim());
+				if (isStale(gen)) return;
+				supportTag = saved.supportTag;
+				supportTagDirty = false;
+			}
+			await api.amneziaPremiumSwitch(selectedCountry, gatewayProtocol, chosenBackend);
+			if (isStale(gen)) return;
+			busy = false;
+			onclose();
+		} catch (e) {
+			if (isStale(gen)) return;
+			busy = false;
+			failWith(e, 'config');
+		}
 	}
 
 	async function issueConfig(code: string): Promise<void> {
