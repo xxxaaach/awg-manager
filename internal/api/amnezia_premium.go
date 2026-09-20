@@ -72,7 +72,11 @@ const logActionPremium = "amnezia-premium"
 type AmneziaPremiumKeyRequest struct {
 	Key      string `json:"key" example:"vpn://..."`
 	Store    *bool  `json:"store,omitempty" example:"false"`
-	Remember *bool  `json:"remember,omitempty" example:"true"`
+	Remember   *bool   `json:"remember,omitempty" example:"true"`
+	// SupportTag is Amnezia Gateway installation_uuid. nil preserves an
+	// existing tag (or allocates one on first account add); an explicitly
+	// empty string rotates to a new generated UUID.
+	SupportTag *string `json:"supportTag,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 // AmneziaPremiumKeyData — состояние ключа подписки. Форма ОДНА на все три
@@ -95,6 +99,8 @@ type AmneziaPremiumKeyData struct {
 	// состоявшийся вход. Без omitempty намеренно: поле, пропадающее из тела
 	// там, где ошибки нет, — это и есть вторая форма ответа.
 	SaveError string `json:"saveError"`
+	// SupportTag is not a credential; it is the Gateway device identifier.
+	SupportTag string `json:"supportTag,omitempty"`
 }
 
 // AmneziaPremiumKeyResponse — конверт всех трёх методов /amnezia/premium/key.
@@ -395,6 +401,13 @@ func (h *AmneziaPremiumHandler) SaveKey(w http.ResponseWriter, r *http.Request) 
 		response.ErrorWithStatus(w, http.StatusConflict,
 			"Состояние ключа подписки изменилось, пока шла проверка — введите ключ заново", codePremiumStateChanged)
 		return
+	}
+
+	// A Premium account and its Gateway device identity are established
+	// together. Existing installations keep their tag when old clients do not
+	// send the new field; first use allocates a UUID automatically.
+	if _, tagErr := h.ensurePremiumSupportTag(req.SupportTag); tagErr != nil {
+		h.log.Warn(logActionPremium, "support-tag", "не удалось сохранить Support tag: "+tagErr.Error())
 	}
 
 	var saveErrMsg string
