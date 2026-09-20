@@ -568,6 +568,15 @@ func (h *AmneziaPremiumHandler) DeleteKey(w http.ResponseWriter, r *http.Request
 	err := h.settings.Update(func(cur *storage.Settings) error {
 		hadCipher = strings.TrimSpace(cur.AmneziaPremiumKeyCipher) != ""
 		cur.AmneziaPremiumKeyCipher = ""
+		// Gateway identity belongs to the Premium account. Forgetting the
+		// account detaches existing runtimes instead of letting a newly added
+		// subscription overwrite a tunnel that belonged to the old key.
+		cur.AmneziaPremiumSupportTag = ""
+		cur.AmneziaPremiumProtocol = ""
+		cur.AmneziaPremiumServerCountry = ""
+		cur.AmneziaPremiumAWGBackend = ""
+		cur.AmneziaPremiumAWGTunnelID = ""
+		cur.AmneziaPremiumVLESSTag = ""
 		return nil
 	})
 	// Поколение двигает КАЖДОЕ удаление — и то, которому было что удалять, и
