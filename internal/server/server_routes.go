@@ -565,6 +565,10 @@ func (s *Server) registerLogsImportRoutes(mux *http.ServeMux, h *routeHandlers) 
 	// её в каждой выдаче конфигурации, и живёт она там же, где зеркало,  —
 	// у мастера premium, а не в общих настройках.
 	mux.HandleFunc("/api/amnezia/premium/declared-country", h.guarded(amneziaPremiumHandler.DeclaredCountry))
+	// Gateway-mode Premium account state and config retrieval. This path reuses
+	// one installation_uuid (Support tag) across country/protocol changes.
+	mux.HandleFunc("/api/amnezia/premium/gateway-state", h.guarded(amneziaPremiumHandler.GatewayState))
+	mux.HandleFunc("/api/amnezia/premium/gateway-config", h.guarded(amneziaPremiumHandler.GatewayConfig))
 
 	// External tunnels (protected + boot guarded)
 	mux.HandleFunc("/api/external-tunnels", h.guarded(h.externalHandler.List))
