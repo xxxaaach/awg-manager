@@ -125,6 +125,18 @@ type Settings struct {
 	// Пишется ручкой premium с тем же значением, с которым ушёл запрос в
 	// портал; через /settings/update поля нет (nonPatchableSettings).
 	AmneziaPremiumDeclaredCountry string `json:"amneziaPremiumDeclaredCountry,omitempty"`
+	// AmneziaPremiumSupportTag is the Gateway installation_uuid shown by
+	// AmneziaVPN as the Support tag. It is not a secret. Empty means it has not
+	// been allocated yet; the Premium Gateway flow generates a UUID on first use.
+	AmneziaPremiumSupportTag string `json:"amneziaPremiumSupportTag,omitempty"`
+	// AmneziaPremiumProtocol / ServerCountry describe the currently selected
+	// Premium Gateway endpoint. They are UI/runtime state, not credentials.
+	AmneziaPremiumProtocol      string `json:"amneziaPremiumProtocol,omitempty"`
+	AmneziaPremiumServerCountry string `json:"amneziaPremiumServerCountry,omitempty"`
+	// Runtime references let protocol switching update the same logical Premium
+	// connection instead of creating a fresh tunnel on every country change.
+	AmneziaPremiumAWGTunnelID string `json:"amneziaPremiumAwgTunnelId,omitempty"`
+	AmneziaPremiumVLESSTag    string `json:"amneziaPremiumVlessTag,omitempty"`
 }
 
 // DNSChainPresetState is backend-managed state of the DNS-chain preset
