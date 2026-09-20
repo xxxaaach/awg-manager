@@ -334,6 +334,48 @@ func DecodeVPNPayload(input string) ([]byte, error) {
 	return decompressQt(raw)
 }
 
+// ExtractAWGConf finds the WireGuard/AmneziaWG client .conf embedded in an
+// API-v2 Gateway config and substitutes the locally generated private key.
+func ExtractAWGConf(serverConfig []byte, privateKey string) (string, error) {
+	replaced := bytes.ReplaceAll(serverConfig, []byte("$WIREGUARD_CLIENT_PRIVATE_KEY"), []byte(privateKey))
+	var root map[string]any
+	if err := json.Unmarshal(replaced, &root); err != nil {
+		return "", fmt.Errorf("amnezia gateway: parse AWG server config: %w", err)
+	}
+	containers, _ := root["containers"].([]any)
+	for _, item := range containers {
+		container, _ := item.(map[string]any)
+		for _, key := range []string{"awg", "wireguard"} {
+			proto, _ := container[key].(map[string]any)
+			if proto == nil {
+				continue
+			}
+			if conf := extractLastConfigConf(proto["last_config"]); conf != "" {
+				return conf, nil
+			}
+		}
+	}
+	return "", errors.New("amnezia gateway: AWG client config not found")
+}
+
+func extractLastConfigConf(v any) string {
+	switch x := v.(type) {
+	case string:
+		if strings.Contains(x, "[Interface]") {
+			return x
+		}
+		var obj map[string]any
+		if json.Unmarshal([]byte(x), &obj) == nil {
+			if conf := asString(obj["config"]); conf != "" {
+				return conf
+			}
+		}
+	case map[string]any:
+		return asString(x["config"])
+	}
+	return ""
+}
+
 // ExtractXrayClientConfig finds the Xray client JSON embedded in an Amnezia
 // API-v2 server config. Gateway VLESS configs keep that JSON in last_config.
 func ExtractXrayClientConfig(serverConfig []byte) ([]byte, error) {
