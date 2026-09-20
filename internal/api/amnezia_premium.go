@@ -13,6 +13,7 @@ import (
 	"github.com/hoaxisr/awg-manager/internal/events"
 	"github.com/hoaxisr/awg-manager/internal/logging"
 	"github.com/hoaxisr/awg-manager/internal/response"
+	"github.com/hoaxisr/awg-manager/internal/singbox"
 	"github.com/hoaxisr/awg-manager/internal/storage"
 )
 
@@ -120,6 +121,11 @@ type AmneziaPremiumHandler struct {
 	cipher   *storage.DeviceCipher
 	log      *logging.ScopedLogger
 	bus      *events.Bus
+	// Gateway-mode runtime dependencies. They are wired by the HTTP server
+	// after construction so the legacy CP-only tests can keep using a minimal
+	// handler.
+	tunnelSvc TunnelService
+	singboxOp *singbox.Operator
 
 	mu sync.Mutex
 	// sessionKey — ключ режима «не запоминать»: живёт в памяти демона до
@@ -170,6 +176,14 @@ func NewAmneziaPremiumHandler(settings *storage.SettingsStore, appLogger logging
 
 // SetEventBus подключает шину SSE; nil допустим (тесты).
 func (h *AmneziaPremiumHandler) SetEventBus(bus *events.Bus) { h.bus = bus }
+
+// SetGatewayRuntime wires the two runtime backends used by the Premium quick
+// switcher: AWG remains on the existing native/kernel tunnel service, while
+// VLESS is managed by sing-box.
+func (h *AmneziaPremiumHandler) SetGatewayRuntime(tunnels TunnelService, sb *singbox.Operator) {
+	h.tunnelSvc = tunnels
+	h.singboxOp = sb
+}
 
 // SetHTTPClient подменяет транспорт к зеркалу и порталу. Шов для тестов:
 // стенд на httptest.NewTLSServer отдаёт самоподписанный сертификат, и без
