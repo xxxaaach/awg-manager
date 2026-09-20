@@ -548,6 +548,7 @@ func (s *Server) registerLogsImportRoutes(mux *http.ServeMux, h *routeHandlers) 
 	// одно, и разводить его по трём путям нечем.
 	amneziaPremiumHandler := api.NewAmneziaPremiumHandler(s.settings, h.appLog)
 	amneziaPremiumHandler.SetEventBus(s.bus)
+	amneziaPremiumHandler.SetGatewayRuntime(s.tunnelService, s.singboxOp)
 	mux.HandleFunc("/api/amnezia/premium/key", h.guarded(amneziaPremiumHandler.Key))
 	// Каталог подписки (GET) и выдача конфигурации страны (POST). Пути
 	// разные, потому что операции разные: первая читает, вторая ТРАТИТ слот
