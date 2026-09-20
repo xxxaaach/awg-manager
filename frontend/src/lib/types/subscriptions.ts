@@ -68,6 +68,7 @@ export interface AmneziaPremiumGatewayState {
 	supportTag: string;
 	protocol: 'awg' | 'vless';
 	countryCode: string;
+	awgBackend: 'nativewg' | 'kernel';
 }
 
 /** Config returned by the reusable Gateway flow. */
@@ -81,6 +82,15 @@ export interface AmneziaPremiumGatewayConfig {
 	link?: string;
 	/** Parsed sing-box outbound, useful for in-place updates. */
 	outbound?: Record<string, unknown>;
+}
+
+/** Result of applying a Gateway config to the live runtime. */
+export interface AmneziaPremiumSwitchResult {
+	countryCode: string;
+	protocol: 'awg' | 'vless';
+	supportTag: string;
+	awgTunnelId?: string;
+	vlessTag?: string;
 }
 
 /** Выданная конфигурация страны: POST /amnezia/premium/config. */
