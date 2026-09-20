@@ -33,7 +33,7 @@
 	import { singboxDelayHistory, singboxStatus, singboxTraffic, singboxTunnels } from '$lib/stores/singbox';
 	import { awg3Tunnels } from '$lib/stores/awg3';
 	import { Awg3TunnelsSection, Awg3ImportModal } from '$lib/components/awg3';
-	import { AmneziaPremiumWizard } from '$lib/components/amneziapremium';
+	import { AmneziaPremiumWizard, PremiumQuickSwitch } from '$lib/components/amneziapremium';
 	import type { PremiumWizardResult } from '$lib/components/amneziapremium';
 	import { feedTraffic, getTrafficRates, getTrafficSparklineSeries, subscribeTraffic } from '$lib/stores/traffic';
 	import { usageLevel } from '$lib/stores/settings';
@@ -1760,6 +1760,7 @@
 <PageContainer width="full">
 	<PageHeader title="Туннели">
 		{#snippet actions()}
+			<PremiumQuickSwitch backendAvailability={sysInfo?.backendAvailability} />
 			<Button variant="secondary" size="sm" onclick={() => (premiumWizardOpen = true)}>
 				{#snippet iconBefore()}<Crown size={14} aria-hidden="true" />{/snippet}
 				Amnezia Premium
