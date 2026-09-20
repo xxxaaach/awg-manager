@@ -13,15 +13,27 @@
 		countryTunnels: readonly { name: string; amneziaCountry?: string }[];
 		selected: string;
 		disabled: boolean;
+		/** Legacy catalog uses AWG only; Gateway can switch AWG/VLESS. */
+		protocol?: 'awg' | 'vless' | 'any';
 		onselect: (code: string) => void;
 	}
 
-	let { countries, issued, countryTunnels, selected, disabled, onselect }: Props = $props();
+	let { countries, issued, countryTunnels, selected, disabled, protocol = 'awg', onselect }: Props = $props();
 
 	// Протокол, которым мастер умеет забрать конфигурацию, решает хелпер:
 	// vless-only страну импортировать нечем, и показывать её — обещать
 	// действие, которое кончится отказом.
-	const usable = $derived(countries.filter(isPremiumCountryAvailable));
+	function supportsProtocol(country: AmneziaPremiumCountry): boolean {
+		if (protocol === 'awg') return isPremiumCountryAvailable(country);
+		const protocols = country.protocols;
+		// Older Gateway/CP responses without available_protocols are kept visible.
+		if (protocols == null) return true;
+		const normalized = protocols.map((p) => p.trim().toLowerCase());
+		if (protocol === 'any') return normalized.includes('awg') || normalized.includes('vless');
+		return normalized.includes(protocol);
+	}
+
+	const usable = $derived(countries.filter(supportsProtocol));
 </script>
 
 <ul class="premium-countries" role="listbox" aria-label="Страны подписки">
@@ -46,7 +58,9 @@
 			</button>
 		</li>
 	{:else}
-		<li class="premium-countries-empty">Подписка не отдаёт ни одной страны по AmneziaWG.</li>
+		<li class="premium-countries-empty">
+			{protocol === 'vless' ? 'Подписка не отдаёт ни одной страны по VLESS.' : 'Подписка не отдаёт ни одной страны по AmneziaWG.'}
+		</li>
 	{/each}
 </ul>
 
