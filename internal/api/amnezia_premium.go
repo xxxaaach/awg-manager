@@ -70,12 +70,9 @@ const logActionPremium = "amnezia-premium"
 // длительность чужой сессии: отсутствие поля означает «как обычно», то есть
 // долгую сессию, иначе пользователь получал бы ре-логин на каждом шаге.
 type AmneziaPremiumKeyRequest struct {
-	Key        string `json:"key" example:"vpn://..."`
-	Store      *bool  `json:"store,omitempty" example:"false"`
-	Remember   *bool  `json:"remember,omitempty" example:"true"`
-	// SupportTag is used only by Premium V2 Gateway keys as installation_uuid.
-	// Empty means reuse the saved tag or generate a stable UUID v4.
-	SupportTag string `json:"supportTag,omitempty" example:"3042a564-08f1-4ecb-9c64-1aac10434c4f"`
+	Key      string `json:"key" example:"vpn://..."`
+	Store    *bool  `json:"store,omitempty" example:"false"`
+	Remember *bool  `json:"remember,omitempty" example:"true"`
 }
 
 // AmneziaPremiumKeyData — состояние ключа подписки. Форма ОДНА на все три
