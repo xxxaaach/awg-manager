@@ -593,8 +593,10 @@
 			unusableStored={keyStored && !keyUsable}
 			{hasStoredKey}
 			source={keySource}
+			{supportTag}
 			oninput={(v) => (keyInput = v)}
 			onremember={(v) => (remember = v)}
+			onsupporttag={(v) => (supportTag = v)}
 			onsource={(v) => (keySource = v)}
 			onforget={() => void forgetKey()}
 		/>
@@ -620,17 +622,57 @@
 					Ключ проверен, но сохранить его на роутере не вышло: {saveWarning}
 				</p>
 			{/if}
-			<PremiumDeclaredCountryField
-				value={declaredCountry}
-				disabled={busy}
-				onchange={(code) => (declaredCountry = code)}
-			/>
+			{#if catalog.gateway}
+				<div class="premium-gateway-settings">
+					<label class="field-label" for="premium-support-tag-edit">Support tag</label>
+					<div class="premium-support-edit">
+						<input
+							id="premium-support-tag-edit"
+							class="field-input"
+							value={supportTag}
+							spellcheck="false"
+							disabled={busy}
+							oninput={(e) => {
+								supportTag = e.currentTarget.value;
+								supportTagDirty = true;
+							}}
+						/>
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={!supportTagDirty || !supportTag.trim() || busy}
+							onclick={() => void saveSupportTag()}
+						>Сохранить</Button>
+					</div>
+					<div class="premium-protocol-switch" role="group" aria-label="Протокол Premium">
+						<button
+							type="button"
+							class:active={gatewayProtocol === 'awg'}
+							disabled={busy}
+							onclick={() => setGatewayProtocol('awg')}>AmneziaWG</button
+						>
+						<button
+							type="button"
+							class:active={gatewayProtocol === 'vless'}
+							disabled={busy || replaceTarget !== null}
+							onclick={() => setGatewayProtocol('vless')}>VLESS</button
+						>
+					</div>
+				</div>
+			{:else}
+				<PremiumDeclaredCountryField
+					value={declaredCountry}
+					disabled={busy}
+					onchange={(code) => (declaredCountry = code)}
+				/>
+			{/if}
 			<PremiumCountryList
 				countries={catalog.countries}
 				issued={issuedConfigs}
 				{countryTunnels}
 				selected={selectedCountry}
 				disabled={!issueAllowed || busy}
+				protocol={catalog.gateway ? gatewayProtocol : 'awg'}
 				onselect={chooseCountry}
 			/>
 		</div>
@@ -674,7 +716,7 @@
 					Забыть ключ
 				</Button>
 			{/if}
-			{#if !replaceTarget}
+			{#if !replaceTarget && (!isGateway || gatewayProtocol === 'awg')}
 				<PremiumCreateFooter
 					name={tunnelName}
 					backend={chosenBackend}
@@ -703,7 +745,13 @@
 				disabled={phase !== 'catalog' || !canIssue}
 				onclick={requestConfig}
 			>
-				{replaceTarget ? 'Заменить конфиг' : 'Создать туннель'}
+				{replaceTarget
+					? 'Заменить конфиг'
+					: isGateway
+						? gatewayProtocol === 'vless'
+							? 'Подключить VLESS'
+							: 'Подключить AWG'
+						: 'Создать туннель'}
 			</Button>
 		</div>
 	{/if}
@@ -720,7 +768,7 @@
 />
 
 <ConfirmModal
-	open={revokeCountry !== ''}
+	open={!isGateway && revokeCountry !== ''}
 	title="Отозвать конфигурацию?"
 	message={`Конфигурация страны «${revokeCountryName}» будет отозвана у Amnezia, слот устройств подписки вернётся. Туннель, работающий на этой конфигурации, перестанет подключаться.`}
 	secondary="Чтобы пользоваться страной снова, конфигурацию придётся выдать заново — это опять займёт слот."
@@ -733,7 +781,7 @@
 />
 
 <ConfirmModal
-	open={confirmCountry !== ''}
+	open={!isGateway && confirmCountry !== ''}
 	title={confirmIssuedByUs ? 'Выдать конфигурацию повторно?' : 'Страна уже занимает слот — выдать?'}
 	message={confirmIssuedByUs
 		? `По стране «${confirmCountryName}» конфигурация уже выдавалась. Повторная выдача займёт ЕЩЁ ОДИН слот устройств подписки.`
