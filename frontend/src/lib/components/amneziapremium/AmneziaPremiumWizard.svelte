@@ -810,6 +810,55 @@
 		color: var(--warning, var(--color-warning));
 	}
 
+	.premium-gateway-settings {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px 12px;
+		border: 1px solid var(--border, var(--color-border));
+		border-radius: 8px;
+	}
+
+	.premium-support-edit {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+	}
+
+	.premium-support-edit .field-input {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.premium-protocol-switch {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 4px;
+		padding: 3px;
+		border-radius: 8px;
+		background: var(--bg-secondary, var(--color-bg-secondary));
+	}
+
+	.premium-protocol-switch button {
+		min-height: 34px;
+		border: 0;
+		border-radius: 6px;
+		background: transparent;
+		color: var(--text-secondary, var(--color-text-secondary));
+		cursor: pointer;
+	}
+
+	.premium-protocol-switch button.active {
+		background: var(--bg-primary, var(--color-bg-primary));
+		color: var(--text-primary, var(--color-text-primary));
+		box-shadow: 0 0 0 1px var(--border, var(--color-border));
+	}
+
+	.premium-protocol-switch button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
 	.premium-skeletons {
 		display: flex;
 		flex-direction: column;
@@ -892,6 +941,11 @@
 	}
 
 	@media (max-width: 640px) {
+		.premium-support-edit {
+			align-items: stretch;
+			flex-direction: column;
+		}
+
 		.premium-footer :global(.premium-name-input) {
 			flex: 1 1 100%;
 		}
