@@ -1154,6 +1154,17 @@
 	 * конфигурацией: по ней список стран потом показывает «туннель awg-nl».
 	 */
 	async function importPremiumConfig(result: PremiumWizardResult) {
+		// Gateway-mode already created/updated the runtime on the backend.
+		// Do not import the returned config a second time.
+		if (result.applied) {
+			notifications.success(
+				`Amnezia Premium: ${result.countryCode.toUpperCase()} · ${result.protocol === 'vless' ? 'VLESS' : 'AWG'}`
+			);
+			if (result.protocol === 'awg' && result.awgTunnelId) {
+				goto(`/tunnels/${result.awgTunnelId}`);
+			}
+			return;
+		}
 		importing = true;
 		try {
 			const tunnel = await tunnels.importConfig({
